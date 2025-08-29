@@ -1,0 +1,106 @@
+@page "{id}"
+@model ABCRetail.Pages.Products.DeleteModel
+@{
+    ViewData["Title"] = "Delete Product";
+}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-trash me-2"></i>Delete Product
+        </h2>
+        <a asp-page="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Products
+        </a>
+    </div>
+
+    @if (Model.Product == null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Product not found.
+        </div>
+        <a asp-page="Index" class="btn btn-primary">Return to Products</a>
+        return;
+    }
+
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card slide-in">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Confirm Deletion
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This action cannot be undone.
+                    </div>
+
+                    <div class="product-info mb-4">
+                        <h6>Product Details:</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Name:</strong><br />
+                                @Model.Product.Name
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Brand:</strong><br />
+                                @Model.Product.Brand
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-6">
+                                <strong>Category:</strong><br />
+                                @Model.Product.Category
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Price:</strong><br />
+                                $@Model.Product.Price.ToString("F2")
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-6">
+                                <strong>Stock:</strong><br />
+                                @Model.Product.StockQuantity units
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Status:</strong><br />
+                                @if (Model.Product.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(Model.Product.ImageUrl))
+                        {
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <strong>Image:</strong><br />
+                                    <img src="@Model.Product.ImageUrl" alt="@Model.Product.Name" class="img-thumbnail" style="max-width: 150px; max-height: 150px;" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <form method="post">
+                        <div class="d-flex justify-content-end gap-2">
+                            <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash me-2"></i>Delete Product
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+

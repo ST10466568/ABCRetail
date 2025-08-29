@@ -1,0 +1,97 @@
+@page "{id}"
+@model ABCRetail.Pages.Customers.DeleteModel
+@{
+    ViewData["Title"] = "Delete Customer";
+}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-trash me-2"></i>Delete Customer
+        </h2>
+        <a asp-page="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Customers
+        </a>
+    </div>
+
+    @if (Model.Customer == null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Customer not found.
+        </div>
+        <a asp-page="Index" class="btn btn-primary">Return to Customers</a>
+        return;
+    }
+
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card slide-in">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Confirm Deletion
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This action cannot be undone.
+                    </div>
+
+                    <div class="customer-info mb-4">
+                        <h6>Customer Details:</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Name:</strong><br />
+                                @Model.Customer.FullName
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Email:</strong><br />
+                                @Model.Customer.Email
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-6">
+                                <strong>Phone:</strong><br />
+                                @Model.Customer.Phone
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Location:</strong><br />
+                                @Model.Customer.City, @Model.Customer.State
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-6">
+                                <strong>Status:</strong><br />
+                                @if (Model.Customer.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Created:</strong><br />
+                                @Model.Customer.CreatedDate.ToString("MMM dd, yyyy")
+                            </div>
+                        </div>
+                    </div>
+
+                    <form method="post">
+                        <div class="d-flex justify-content-end gap-2">
+                            <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash me-2"></i>Delete Customer
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+

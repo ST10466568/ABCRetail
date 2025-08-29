@@ -1,0 +1,112 @@
+@page
+@model AzureTestModel
+@{
+    ViewData["Title"] = "Azure Connection Test";
+}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-cloud-check me-2"></i>
+                        Azure Connection Test
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>🔧 Configuration Test</h5>
+                            <div class="mb-3">
+                                <strong>Connection String:</strong>
+                                <div class="text-muted small">
+                                    @(string.IsNullOrEmpty(Model.ConnectionString) ? "❌ Not Found" : $"✅ Found ({Model.ConnectionString.Substring(0, Math.Min(50, Model.ConnectionString.Length))}...)")
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Table SAS Token:</strong>
+                                <div class="text-muted small">
+                                    @(string.IsNullOrEmpty(Model.TableSasToken) ? "❌ Not Found" : $"✅ Found ({Model.TableSasToken.Substring(0, Math.Min(30, Model.TableSasToken.Length))}...)")
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Blob SAS Token:</strong>
+                                <div class="text-muted small">
+                                    @(string.IsNullOrEmpty(Model.BlobSasToken) ? "❌ Not Found" : $"✅ Found ({Model.BlobSasToken.Substring(0, Math.Min(30, Model.BlobSasToken.Length))}...)")
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>🧪 Connection Test</h5>
+                            <div class="mb-3">
+                                <strong>Table Service:</strong>
+                                <div class="text-muted small">
+                                    @(Model.TableServiceConnected ? "✅ Connected" : "❌ Not Connected")
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Blob Service:</strong>
+                                <div class="text-muted small">
+                                    @(Model.BlobServiceConnected ? "✅ Connected" : "❌ Not Connected")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <div class="row">
+                        <div class="col-12">
+                            <h5>🚀 Test Actions</h5>
+                            <div class="d-flex gap-2 mb-3">
+                                <form method="post" asp-page-handler="TestTableConnection" class="d-inline">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-database me-2"></i>
+                                        Test Table Connection
+                                    </button>
+                                </form>
+                                <form method="post" asp-page-handler="TestBlobConnection" class="d-inline">
+                                    <button type="submit" class="btn btn-info">
+                                        <i class="bi bi-file-earmark-image me-2"></i>
+                                        Test Blob Connection
+                                    </button>
+                                </form>
+                                <form method="post" asp-page-handler="CreateTestTable" class="d-inline">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="bi bi-plus-circle me-2"></i>
+                                        Create Test Table
+                                    </button>
+                                </form>
+                                <form method="post" asp-page-handler="SeedTestData" class="d-inline">
+                                    <button type="submit" class="btn btn-warning">
+                                        <i class="bi bi-seed me-2"></i>
+                                        Seed Test Data
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(Model.TestResult))
+                    {
+                        <div class="alert alert-info">
+                            <h6>📋 Test Results:</h6>
+                            <pre class="mb-0">@Model.TestResult</pre>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            <h6>❌ Error Details:</h6>
+                            <pre class="mb-0">@Model.ErrorMessage</pre>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+

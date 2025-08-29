@@ -1,0 +1,240 @@
+﻿@page
+@model ABCRetail.Pages.IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="container-fluid">
+    <!-- KPI Cards Row -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="kpi-card fade-in">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="kpi-value">@Model.CustomerCount</div>
+                        <div class="kpi-label">Total Customers</div>
+                    </div>
+                    <div class="ms-3">
+                        <i class="bi bi-people text-primary" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="kpi-card fade-in">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="kpi-value">@Model.ProductCount</div>
+                        <div class="kpi-label">Total Products</div>
+                    </div>
+                    <div class="ms-3">
+                        <i class="bi bi-box text-primary" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="kpi-card fade-in">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="kpi-value">0</div>
+                        <div class="kpi-label">Active Orders</div>
+                    </div>
+                    <div class="ms-3">
+                        <i class="bi bi-cart text-primary" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="kpi-card fade-in">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="kpi-value">0</div>
+                        <div class="kpi-label">Log Files</div>
+                    </div>
+                    <div class="ms-3">
+                        <i class="bi bi-file-text text-primary" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity and Quick Actions Row -->
+    <div class="row">
+        <!-- Recent Queue Messages -->
+        <div class="col-lg-8 mb-4">
+            <div class="card slide-in">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-activity me-2"></i>Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-cart me-2"></i>Order Queue
+                            </h6>
+                            <div class="queue-message">
+                                <small class="text-muted">@DateTime.Now.ToString("HH:mm")</small>
+                                <div class="mt-1">No recent order messages</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-box me-2"></i>Inventory Queue
+                            </h6>
+                            <div class="queue-message">
+                                <small class="text-muted">@DateTime.Now.ToString("HH:mm")</small>
+                                <div class="mt-1">No recent inventory messages</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-image me-2"></i>Image Queue
+                            </h6>
+                            <div class="queue-message">
+                                <small class="text-muted">@DateTime.Now.ToString("HH:mm")</small>
+                                <div class="mt-1">No recent image messages</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-lg-4 mb-4">
+            <div class="card slide-in">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-lightning me-2"></i>Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-3">
+                        <a asp-page="/Customers/Create" class="btn btn-primary">
+                            <i class="bi bi-person-plus me-2"></i>Add Customer
+                        </a>
+                        <a asp-page="/Products/Create" class="btn btn-secondary">
+                            <i class="bi bi-plus-circle me-2"></i>Add Product
+                        </a>
+                        <a asp-page="/Products/Index" class="btn btn-outline-primary">
+                            <i class="bi bi-images me-2"></i>Upload Images
+                        </a>
+                        <a asp-page="/Logs/Index" class="btn btn-outline-secondary">
+                            <i class="bi bi-file-earmark-text me-2"></i>View Logs
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Featured Products -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card slide-in">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-star me-2"></i>Featured Products
+                    </h5>
+                    <a asp-page="/Products/Index" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    <div class="product-grid">
+                        @foreach (var product in Model.Products.Take(4))
+                        {
+                            <div class="product-card">
+                                <div class="product-image-container">
+                                    <i class="bi bi-box-seam text-primary" style="font-size: 3rem; width: 100%; height: 200px; display: flex; align-items: center; justify-content: center; background: var(--accent-color);"></i>
+                                    <div class="product-overlay">
+                                        <div class="product-actions">
+                                            <a asp-page="/Products/Details" asp-route-id="@product.RowKey" 
+                                               class="btn btn-sm btn-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a asp-page="/Products/Edit" asp-route-id="@product.RowKey" 
+                                               class="btn btn-sm btn-secondary">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <a asp-page="/Products/Delete" asp-route-id="@product.RowKey" 
+                                               class="btn btn-sm btn-danger">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="product-info">
+                                    <h6 class="product-name">@product.Name</h6>
+                                    <p class="text-muted mb-2">@product.Brand</p>
+                                    <p class="text-muted small mb-2">@product.Description</p>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="product-price">$@product.Price.ToString("F2")</span>
+                                        <span class="badge bg-@(product.IsActive ? "success" : "secondary")">
+                                            @(product.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">Stock: @product.StockQuantity</small>
+                                        <small class="text-muted">@product.Category</small>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.product-image-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.product-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.product-card:hover .product-overlay {
+    opacity: 1;
+}
+
+.product-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.product-actions .btn {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+
+@section Scripts {
+    <script>
+        // Auto-refresh queue messages every 30 seconds
+        setInterval(function() {
+            location.reload();
+        }, 30000);
+    </script>
+}

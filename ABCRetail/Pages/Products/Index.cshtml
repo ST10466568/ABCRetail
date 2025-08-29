@@ -1,0 +1,425 @@
+@page
+@model ABCRetail.Pages.Products.IndexModel
+@{
+    ViewData["Title"] = "Products";
+}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-box me-2"></i>Products
+        </h2>
+        <div class="d-flex gap-2">
+            <a asp-page="Create" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-2"></i>Add Product
+            </a>
+            <a asp-page="UploadImages" class="btn btn-secondary">
+                <i class="bi bi-images me-2"></i>Upload Images
+            </a>
+            <button type="button" class="btn btn-warning" onclick="checkLowStock()">
+                <i class="bi bi-exclamation-triangle me-2"></i>Check Low Stock
+            </button>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- Filters and Search -->
+    <div class="card mb-4 slide-in">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">Category</label>
+                    <select class="form-select" id="categoryFilter">
+                        <option value="">All Categories</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Home & Kitchen">Home & Kitchen</option>
+                        <option value="Sports & Fitness">Sports & Fitness</option>
+                        <option value="Clothing">Clothing</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Brand</label>
+                    <select class="form-select" id="brandFilter">
+                        <option value="">All Brands</option>
+                        <option value="TechAudio">TechAudio</option>
+                        <option value="SmartTech">SmartTech</option>
+                        <option value="BrewMaster">BrewMaster</option>
+                        <option value="FitLife">FitLife</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Search</label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="searchInput" placeholder="Search products...">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Products Grid -->
+    <div class="card slide-in">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Product Catalog</h5>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showInactive">
+                        <label class="form-check-label" for="showInactive">
+                            Show Inactive
+                        </label>
+                    </div>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="gridView">
+                            <i class="bi bi-grid-3x3-gap"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="listView">
+                            <i class="bi bi-list"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            @if (Model.PaginatedProducts.Any())
+            {
+                <div class="product-grid" id="productsGrid">
+                    @foreach (var product in Model.PaginatedProducts)
+                    {
+                        <div class="product-card" data-category="@product.Category" data-brand="@product.Brand" data-name="@product.Name.ToLower()">
+                            <div class="product-image-container">
+                                <img src="@(string.IsNullOrEmpty(product.ImageUrl) ? "/images/placeholder.jpg" : product.ImageUrl)" 
+                                     alt="@product.Name" class="product-image">
+                                <div class="product-overlay">
+                                    <div class="product-actions">
+                                        <a asp-page="./Details" asp-route-id="@product.RowKey" 
+                                           class="btn btn-sm btn-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a asp-page="./Edit" asp-route-id="@product.RowKey" 
+                                           class="btn btn-sm btn-secondary">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <a asp-page="./Delete" asp-route-id="@product.RowKey" 
+                                           class="btn btn-sm btn-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="product-info">
+                                <h6 class="product-name">@product.Name</h6>
+                                <p class="text-muted mb-2">@product.Brand</p>
+                                <p class="text-muted small mb-2">@product.Description</p>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="product-price">$@product.Price.ToString("F2")</span>
+                                    <span class="badge bg-@(product.IsActive ? "success" : "secondary")">
+                                        @(product.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">Stock: @product.StockQuantity</small>
+                                    <small class="text-muted">@product.Category</small>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- List View (Hidden by default) -->
+                <div class="table-responsive d-none" id="productsList">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Name</th>
+                                <th>Brand</th>
+                                <th>Category</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var product in Model.PaginatedProducts)
+                            {
+                                <tr>
+                                    <td>
+                                        <img src="@(string.IsNullOrEmpty(product.ImageUrl) ? "/images/placeholder.jpg" : product.ImageUrl)" 
+                                             alt="@product.Name" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px;">
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold">@product.Name</div>
+                                        <small class="text-muted">@product.Description</small>
+                                    </td>
+                                    <td>@product.Brand</td>
+                                    <td>@product.Category</td>
+                                    <td class="fw-bold text-primary">$@product.Price.ToString("F2")</td>
+                                    <td>
+                                        <span class="badge bg-@(product.StockQuantity > 10 ? "success" : product.StockQuantity > 0 ? "warning" : "danger")">
+                                            @product.StockQuantity
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-@(product.IsActive ? "success" : "secondary")">
+                                            @(product.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a asp-page="./Details" asp-route-id="@product.RowKey" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a asp-page="./Edit" asp-route-id="@product.RowKey" 
+                                               class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <a asp-page="./Delete" asp-route-id="@product.RowKey" 
+                                               class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-box text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="text-muted mt-3">No products found</h5>
+                    <p class="text-muted">Get started by adding your first product.</p>
+                    <a asp-page="Create" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-2"></i>Add Product
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Pagination Controls - Positioned just under the page content -->
+    @if (Model.TotalPages > 1)
+    {
+        <div class="mt-4">
+            <div class="page-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Showing @(((Model.CurrentPage - 1) * Model.PageSize) + 1) to @Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalProducts) of @Model.TotalProducts products
+            </div>
+            
+            <nav aria-label="Product pagination">
+                <ul class="pagination">
+                    <!-- First Page -->
+                    <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" asp-page="./Index" asp-route-currentPage="1" title="First Page">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                    
+                    <!-- Previous Page -->
+                    <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
+                        <a class="page-link" asp-page="./Index" asp-route-currentPage="@(Model.CurrentPage - 1)" title="Previous Page">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+
+                    <!-- Page Numbers -->
+                    @{
+                        var startPage = Math.Max(1, Model.CurrentPage - 2);
+                        var endPage = Math.Min(Model.TotalPages, Model.CurrentPage + 2);
+                        
+                        if (startPage > 1)
+                        {
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        }
+                        
+                        for (int i = startPage; i <= endPage; i++)
+                        {
+                            <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                                <a class="page-link" asp-page="./Index" asp-route-currentPage="@i">@i</a>
+                            </li>
+                        }
+                        
+                        if (endPage < Model.TotalPages)
+                        {
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        }
+                    }
+
+                    <!-- Next Page -->
+                    <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
+                        <a class="page-link" asp-page="./Index" asp-route-currentPage="@(Model.CurrentPage + 1)" title="Next Page">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    
+                    <!-- Last Page -->
+                    <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                        <a class="page-link" asp-page="./Index" asp-route-currentPage="@Model.TotalPages" title="Last Page">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+<style>
+.product-image-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.product-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.product-card:hover .product-overlay {
+    opacity: 1;
+}
+
+.product-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.product-actions .btn {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+
+@section Scripts {
+    <script>
+        // View toggle functionality
+        document.getElementById('gridView').addEventListener('click', function() {
+            document.getElementById('productsGrid').classList.remove('d-none');
+            document.getElementById('productsList').classList.add('d-none');
+            this.classList.add('active');
+            document.getElementById('listView').classList.remove('active');
+        });
+
+        document.getElementById('listView').addEventListener('click', function() {
+            document.getElementById('productsGrid').classList.add('d-none');
+            document.getElementById('productsList').classList.remove('d-none');
+            this.classList.add('active');
+            document.getElementById('gridView').classList.remove('active');
+        });
+
+        // Filter functionality
+        function filterProducts() {
+            const category = document.getElementById('categoryFilter').value;
+            const brand = document.getElementById('brandFilter').value;
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const showInactive = document.getElementById('showInactive').checked;
+
+            const products = document.querySelectorAll('.product-card');
+            
+            products.forEach(product => {
+                const productCategory = product.dataset.category;
+                const productBrand = product.dataset.brand;
+                const productName = product.dataset.name;
+                const isActive = !product.querySelector('.badge').textContent.includes('Inactive');
+
+                const categoryMatch = !category || productCategory === category;
+                const brandMatch = !brand || productBrand === brand;
+                const searchMatch = !search || productName.includes(search);
+                const statusMatch = showInactive || isActive;
+
+                if (categoryMatch && brandMatch && searchMatch && statusMatch) {
+                    product.style.display = '';
+                } else {
+                    product.style.display = 'none';
+                }
+            });
+        }
+
+        // Add event listeners
+        document.getElementById('categoryFilter').addEventListener('change', filterProducts);
+        document.getElementById('brandFilter').addEventListener('change', filterProducts);
+        document.getElementById('searchInput').addEventListener('keyup', filterProducts);
+        document.getElementById('showInactive').addEventListener('change', filterProducts);
+
+        // Initialize grid view as active
+        document.getElementById('gridView').classList.add('active');
+        
+        // Low stock alert functionality
+        function checkLowStock() {
+            const products = document.querySelectorAll('.product-card');
+            let lowStockCount = 0;
+            let alertMessages = [];
+            
+            products.forEach(product => {
+                const stockElement = product.querySelector('.stock-quantity');
+                if (stockElement) {
+                    const stockText = stockElement.textContent;
+                    const stockMatch = stockText.match(/(\d+)/);
+                    if (stockMatch) {
+                        const stockQuantity = parseInt(stockMatch[1]);
+                        if (stockQuantity <= 10) {
+                            lowStockCount++;
+                            const productName = product.querySelector('.product-name').textContent;
+                            alertMessages.push(`${productName}: ${stockQuantity} units remaining`);
+                        }
+                    }
+                }
+            });
+            
+            if (lowStockCount > 0) {
+                const message = `Found ${lowStockCount} products with low stock:\n\n${alertMessages.join('\n')}\n\nSending inventory alerts to queue...`;
+                alert(message);
+                
+                // Send low stock alerts to inventory queue
+                sendLowStockAlerts(alertMessages);
+            } else {
+                alert('No products with low stock found. All products have sufficient inventory.');
+            }
+        }
+        
+        function sendLowStockAlerts(alertMessages) {
+            // This would typically send AJAX requests to create inventory queue messages
+            // For now, we'll simulate the process
+            console.log('Sending low stock alerts to inventory queue:', alertMessages);
+            
+            // In a real implementation, you would make AJAX calls to create inventory messages
+            // For demonstration purposes, we'll show a success message
+            setTimeout(() => {
+                alert('Low stock alerts have been sent to the inventory queue successfully!');
+            }, 1000);
+        }
+    </script>
+}

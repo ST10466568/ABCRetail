@@ -1,0 +1,151 @@
+@page "{id}"
+@model ABCRetail.Pages.Customers.DetailsModel
+@{
+    ViewData["Title"] = "Customer Details";
+}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-person me-2"></i>Customer Details
+        </h2>
+        <div>
+            <a asp-page="./Edit" asp-route-id="@Model.Customer?.RowKey" class="btn btn-outline-primary me-2">
+                <i class="bi bi-pencil me-2"></i>Edit
+            </a>
+            <a asp-page="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>Back to Customers
+            </a>
+        </div>
+    </div>
+
+    @if (Model.Customer == null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Customer not found.
+        </div>
+        <a asp-page="Index" class="btn btn-primary">Return to Customers</a>
+        return;
+    }
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card slide-in">
+                <div class="card-header">
+                    <div class="d-flex align-items-center">
+                        <div class="avatar-circle me-3" style="width: 60px; height: 60px;">
+                            <span class="avatar-text" style="font-size: 1.5rem;">@Model.Customer.FirstName[0]@Model.Customer.LastName[0]</span>
+                        </div>
+                        <div>
+                            <h4 class="mb-1">@Model.Customer.FullName</h4>
+                            <p class="text-muted mb-0">Customer ID: @Model.Customer.RowKey</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Email</label>
+                            <div class="form-control-plaintext">
+                                <a href="mailto:@Model.Customer.Email" class="text-decoration-none">
+                                    @Model.Customer.Email
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Phone</label>
+                            <div class="form-control-plaintext">
+                                <a href="tel:@Model.Customer.Phone" class="text-decoration-none">
+                                    @Model.Customer.Phone
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Address</label>
+                        <div class="form-control-plaintext">
+                            @Model.Customer.Address<br />
+                            @Model.Customer.City, @Model.Customer.State @Model.Customer.ZipCode
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Status</label>
+                            <div class="form-control-plaintext">
+                                @if (Model.Customer.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Created Date</label>
+                            <div class="form-control-plaintext">
+                                @Model.Customer.CreatedDate.ToString("MMMM dd, yyyy 'at' h:mm tt")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card slide-in">
+                <div class="card-header">
+                    <h6 class="mb-0">Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a asp-page="./Edit" asp-route-id="@Model.Customer.RowKey" class="btn btn-primary">
+                            <i class="bi bi-pencil me-2"></i>Edit Customer
+                        </a>
+                        <a href="mailto:@Model.Customer.Email" class="btn btn-outline-primary">
+                            <i class="bi bi-envelope me-2"></i>Send Email
+                        </a>
+                        <a href="tel:@Model.Customer.Phone" class="btn btn-outline-primary">
+                            <i class="bi bi-telephone me-2"></i>Call Customer
+                        </a>
+                        <button class="btn btn-outline-danger" onclick="confirmDelete()">
+                            <i class="bi bi-trash me-2"></i>Delete Customer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.avatar-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-text {
+    color: white;
+    font-weight: 600;
+    font-size: 1.5rem;
+}
+</style>
+
+<script>
+function confirmDelete() {
+    if (confirm('Are you sure you want to delete this customer? This action cannot be undone.')) {
+        window.location.href = '@Url.Page("./Delete", new { id = Model.Customer?.RowKey })';
+    }
+}
+</script>
+
+

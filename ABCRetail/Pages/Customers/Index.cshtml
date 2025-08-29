@@ -1,0 +1,241 @@
+@page
+@model ABCRetail.Pages.Customers.IndexModel
+@{
+    ViewData["Title"] = "Customers";
+}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-people me-2"></i>Customers
+        </h2>
+        <a asp-page="Create" class="btn btn-primary">
+            <i class="bi bi-person-plus me-2"></i>Add Customer
+        </a>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="card slide-in">
+        <div class="card-header">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h5 class="mb-0">Customer Management</h5>
+                </div>
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="searchInput" placeholder="Search customers...">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            @if (Model.PaginatedCustomers.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover" id="customersTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var customer in Model.PaginatedCustomers)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-circle me-3">
+                                                <span class="avatar-text">@customer.FirstName[0]@customer.LastName[0]</span>
+                                            </div>
+                                            <div>
+                                                <div class="fw-semibold">@customer.FullName</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <a href="mailto:@customer.Email" class="text-decoration-none">
+                                            @customer.Email
+                                        </a>
+                                    </td>
+                                    <td>@customer.Phone</td>
+                                    <td>
+                                        <div class="text-muted">
+                                            @customer.City, @customer.State
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (customer.IsActive)
+                                        {
+                                            <span class="badge bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            @customer.CreatedDate.ToString("MMM dd, yyyy")
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a asp-page="./Details" asp-route-id="@customer.RowKey" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a asp-page="./Edit" asp-route-id="@customer.RowKey" 
+                                               class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <a asp-page="./Delete" asp-route-id="@customer.RowKey" 
+                                               class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-people text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="text-muted mt-3">No customers found</h5>
+                    <p class="text-muted">Get started by adding your first customer.</p>
+                    <a asp-page="Create" class="btn btn-primary">
+                        <i class="bi bi-person-plus me-2"></i>Add Customer
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Pagination Controls - Positioned just under the page content -->
+    @if (Model.TotalPages > 1)
+    {
+        <div class="mt-4">
+            <div class="page-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Showing @(((Model.CurrentPage - 1) * Model.PageSize) + 1) to @Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCustomers) of @Model.TotalCustomers customers
+            </div>
+            
+            <nav aria-label="Customer pagination">
+                <ul class="pagination">
+                    <!-- First Page -->
+                    <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" asp-page="./Index" asp-route-currentPage="1" title="First Page">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                    
+                    <!-- Previous Page -->
+                    <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
+                        <a class="page-link" asp-page="./Index" asp-route-currentPage="@(Model.CurrentPage - 1)" title="Previous Page">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+
+                    <!-- Page Numbers -->
+                    @{
+                        var startPage = Math.Max(1, Model.CurrentPage - 2);
+                        var endPage = Math.Min(Model.TotalPages, Model.CurrentPage + 2);
+                        
+                        if (startPage > 1)
+                        {
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        }
+                        
+                        for (int i = startPage; i <= endPage; i++)
+                        {
+                            <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                                <a class="page-link" asp-page="./Index" asp-route-currentPage="@i">@i</a>
+                            </li>
+                        }
+                        
+                        if (endPage < Model.TotalPages)
+                        {
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        }
+                    }
+
+                    <!-- Next Page -->
+                    <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
+                        <a class="page-link" asp-page="./Index" asp-route-currentPage="@(Model.CurrentPage + 1)" title="Next Page">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    
+                    <!-- Last Page -->
+                    <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                        <a class="page-link" asp-page="./Index" asp-route-currentPage="@Model.TotalPages" title="Last Page">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+<style>
+.avatar-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-blue), var(--primary-blue-light));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-text {
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+</style>
+
+@section Scripts {
+    <script>
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase();
+            const table = document.getElementById('customersTable');
+            const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+            
+            for (let row of rows) {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+    </script>
+}
