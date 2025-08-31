@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using ABCRetail.Models;
+using Azure.Storage.Queues;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -13,419 +13,432 @@ namespace ABCRetail.Services
     public interface IInventoryQueueService
     {
         Task<bool> SendMessageAsync(InventoryQueueMessage message);
+        
+        /// <summary>
+        /// Receives and removes messages from the queue (use with caution)
+        /// </summary>
         Task<List<InventoryQueueMessage>> ReceiveMessagesAsync(int maxMessages = 10);
+        
         Task<bool> DeleteMessageAsync(string messageId, string popReceipt);
         Task<bool> UpdateMessageAsync(string messageId, string popReceipt, InventoryQueueMessage updatedMessage);
         Task<int> GetQueueLengthAsync();
         Task<bool> ClearQueueAsync();
+        
+        /// <summary>
+        /// Peeks at messages without removing them (safe for monitoring/display)
+        /// </summary>
         Task<List<InventoryQueueMessage>> PeekMessagesAsync(int maxMessages = 10);
+        
+        Task<bool> TestConnectionAsync();
     }
 
     public class InventoryQueueService : IInventoryQueueService
     {
-        private readonly HttpClient _httpClient;
-        private readonly string _queueUrl;
+        private readonly QueueClient _queueClient;
         private readonly ILogger<InventoryQueueService> _logger;
+        private readonly bool _isAzureConnected;
 
         public InventoryQueueService(IConfiguration configuration, ILogger<InventoryQueueService> logger)
         {
-            _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "ABCRetail-InventoryQueue/1.0");
-            _httpClient.DefaultRequestHeaders.Add("x-ms-version", "2020-04-08");
-            
-            // Use the full queue URL directly since it already includes the queue name and messages endpoint
-            _queueUrl = configuration["AzureStorage:QueueSasUrl"];
-            
             _logger = logger;
             
-            _logger.LogInformation("InventoryQueueService initialized with URL: {QueueUrl}", _queueUrl);
-        }
-
-        public async Task<bool> SendMessageAsync(InventoryQueueMessage message)
-        {
             try
             {
-                _logger.LogInformation("Sending inventory message: {MessageType} for product {ProductName}", 
-                    message.Type, message.ProductName);
-
-                // Azure Queue Storage expects XML format with proper structure
-                var xmlContent = $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<QueueMessage>
-    <MessageText>{Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })))}</MessageText>
-</QueueMessage>";
+                // Try to use the official Azure SDK with connection string first
+                var connectionString = configuration.GetConnectionString("AzureStorage");
+                _logger.LogInformation("🔍 Connection string found: {HasConnectionString}", !string.IsNullOrEmpty(connectionString));
                 
-                var content = new StringContent(xmlContent, Encoding.UTF8, "application/xml");
-                
-                // Add message to queue using Azure Queue Storage REST API
-                // The URL already includes /messages, so we don't need to append it
-                var response = await _httpClient.PostAsync(_queueUrl, content);
-                
-                if (response.IsSuccessStatusCode)
+                if (!string.IsNullOrEmpty(connectionString))
                 {
-                    _logger.LogInformation("Successfully sent inventory message with ID: {MessageId}", message.Id);
-                    return true;
+                    try
+                    {
+                        var queueServiceClient = new QueueServiceClient(connectionString);
+                        _queueClient = queueServiceClient.GetQueueClient("inventory-queue");
+                        _isAzureConnected = true;
+                        _logger.LogInformation("✅ InventoryQueueService initialized with Azure SDK using connection string for queue: inventory-queue");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ Failed to initialize with connection string, trying SAS URL fallback");
+                        _isAzureConnected = false;
+                    }
                 }
-                else
+                
+                // If connection string failed or wasn't available, try SAS URL approach
+                if (!_isAzureConnected)
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    var errorMessage = $"❌ InventoryQueueService: Failed to send inventory message. Status: {response.StatusCode}, Error: {errorContent}";
-                    _logger.LogError(errorMessage);
-                    throw new Exception(errorMessage);
+                    var queueSasUrl = configuration["AzureStorage:QueueSasUrl"];
+                    _logger.LogInformation("🔍 SAS URL found: {HasSasUrl}", !string.IsNullOrEmpty(queueSasUrl));
+                    
+                    if (!string.IsNullOrEmpty(queueSasUrl))
+                    {
+                        try
+                        {
+                            _queueClient = new QueueClient(new Uri(queueSasUrl));
+                            _isAzureConnected = true;
+                            _logger.LogInformation("✅ InventoryQueueService initialized with Azure SDK using SAS URL for queue: inventory-queue");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "❌ Failed to initialize with SAS URL");
+                            _isAzureConnected = false;
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ No connection string or SAS URL found, Azure Queue operations will fail");
+                        _isAzureConnected = false;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                var detailedError = $"❌ InventoryQueueService: Error sending inventory message {message.Id}: {ex.Message}";
-                if (ex.InnerException != null)
+                _logger.LogError(ex, "❌ Failed to initialize Azure Queue client");
+                _isAzureConnected = false;
+            }
+        }
+
+        public async Task<bool> SendMessageAsync(InventoryQueueMessage message)
+        {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, cannot send message");
+                return false;
+            }
+
+            try
+            {
+                _logger.LogInformation("📤 Sending inventory message: {MessageType} for product {ProductName}", 
+                    message.Type, message.ProductName);
+
+                // Ensure queue exists
+                await _queueClient.CreateIfNotExistsAsync();
+
+                // Serialize message to JSON and encode as base64 (Azure Queue requirement)
+                var jsonMessage = JsonSerializer.Serialize(message, new JsonSerializerOptions 
+                { 
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+                });
+                var base64Message = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage));
+
+                // Send message to Azure Queue
+                var response = await _queueClient.SendMessageAsync(base64Message);
+                
+                if (response.Value != null)
                 {
-                    detailedError += $"\nInner Exception: {ex.InnerException.Message}";
+                    _logger.LogInformation("✅ Successfully sent inventory message with ID: {MessageId}", response.Value.MessageId);
+                    return true;
                 }
-                detailedError += $"\nStack Trace: {ex.StackTrace}";
-                _logger.LogError(detailedError);
-                throw new Exception(detailedError, ex);
+                else
+                {
+                    _logger.LogError("❌ Failed to send message: No response from Azure Queue");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error sending inventory message {MessageId}: {Message}", message.Id, ex.Message);
+                return false;
             }
         }
 
         public async Task<List<InventoryQueueMessage>> ReceiveMessagesAsync(int maxMessages = 10)
         {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, returning empty list");
+                return new List<InventoryQueueMessage>();
+            }
+
             try
             {
-                _logger.LogInformation("Receiving up to {MaxMessages} inventory messages", maxMessages);
+                _logger.LogInformation("📥 Receiving up to {MaxMessages} inventory messages", maxMessages);
 
-                var response = await _httpClient.GetAsync($"{_queueUrl}?numofmessages={maxMessages}&visibilitytimeout=30");
-                
-                if (response.IsSuccessStatusCode)
+                // Ensure queue exists
+                await _queueClient.CreateIfNotExistsAsync();
+
+                var messages = new List<InventoryQueueMessage>();
+                var response = await _queueClient.ReceiveMessagesAsync(maxMessages: maxMessages, visibilityTimeout: TimeSpan.FromSeconds(30));
+
+                foreach (var queueMessage in response.Value)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    _logger.LogInformation("Raw queue response: {Content}", content);
-                    
-                    // Parse XML response from Azure Queue Storage
-                    var messages = ParseQueueMessagesFromXml(content);
-                    _logger.LogInformation("Successfully parsed {MessageCount} messages from XML", messages.Count);
-                    return messages;
+                    try
+                    {
+                        // Decode base64 message and deserialize
+                        var jsonBytes = Convert.FromBase64String(queueMessage.MessageText);
+                        var jsonMessage = Encoding.UTF8.GetString(jsonBytes);
+                        
+                        var inventoryMessage = JsonSerializer.Deserialize<InventoryQueueMessage>(jsonMessage, new JsonSerializerOptions 
+                        { 
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+                        });
+
+                        if (inventoryMessage != null)
+                        {
+                            // Add Azure Queue metadata including pop receipt for deletion/updates
+                            inventoryMessage.Id = queueMessage.MessageId;
+                            inventoryMessage.PopReceipt = queueMessage.PopReceipt; // Store pop receipt for operations
+                            messages.Add(inventoryMessage);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "❌ Error parsing message {MessageId}: {Message}", queueMessage.MessageId, ex.Message);
+                    }
                 }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    var errorMessage = $"❌ InventoryQueueService: Failed to receive inventory messages. Status: {response.StatusCode}, Error: {errorContent}";
-                    _logger.LogError(errorMessage);
-                    throw new Exception(errorMessage);
-                }
+
+                _logger.LogInformation("✅ Successfully received {MessageCount} messages", messages.Count);
+                return messages;
             }
             catch (Exception ex)
             {
-                var detailedError = $"❌ InventoryQueueService: Error receiving inventory messages: {ex.Message}";
-                if (ex.InnerException != null)
-                {
-                    detailedError += $"\nInner Exception: {ex.InnerException.Message}";
-                }
-                detailedError += $"\nStack Trace: {ex.StackTrace}";
-                _logger.LogError(detailedError);
-                throw new Exception(detailedError, ex);
+                _logger.LogError(ex, "❌ Error receiving inventory messages: {Message}", ex.Message);
+                return new List<InventoryQueueMessage>();
             }
         }
 
         public async Task<bool> DeleteMessageAsync(string messageId, string popReceipt)
         {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, cannot delete message");
+                return false;
+            }
+
             try
             {
-                _logger.LogInformation("Deleting inventory message: {MessageId}", messageId);
+                _logger.LogInformation("🗑️ Deleting inventory message: {MessageId}", messageId);
 
-                var response = await _httpClient.DeleteAsync($"{_queueUrl}/{messageId}?popreceipt={popReceipt}");
+                var response = await _queueClient.DeleteMessageAsync(messageId, popReceipt);
                 
-                if (response.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("Successfully deleted inventory message: {MessageId}", messageId);
+                _logger.LogInformation("✅ Successfully deleted inventory message: {MessageId}", messageId);
                     return true;
-                }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    var errorMessage = $"❌ InventoryQueueService: Failed to delete inventory message. Status: {response.StatusCode}, Error: {errorContent}";
-                    _logger.LogError(errorMessage);
-                    throw new Exception(errorMessage);
-                }
             }
             catch (Exception ex)
             {
-                var detailedError = $"❌ InventoryQueueService: Error deleting inventory message {messageId}: {ex.Message}";
-                if (ex.InnerException != null)
-                {
-                    detailedError += $"\nInner Exception: {ex.InnerException.Message}";
-                }
-                detailedError += $"\nStack Trace: {ex.StackTrace}";
-                _logger.LogError(detailedError);
-                throw new Exception(detailedError, ex);
+                _logger.LogError(ex, "❌ Error deleting inventory message {MessageId}: {Message}", messageId, ex.Message);
+                return false;
             }
         }
 
         public async Task<bool> UpdateMessageAsync(string messageId, string popReceipt, InventoryQueueMessage updatedMessage)
         {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, cannot update message");
+                return false;
+            }
+
             try
             {
-                _logger.LogInformation("Updating inventory message: {MessageId}", messageId);
+                _logger.LogInformation("✏️ Updating inventory message: {MessageId}", messageId);
 
-                var json = JsonSerializer.Serialize(updatedMessage, new JsonSerializerOptions 
+                // Azure Queue doesn't support direct message updates, so we'll delete and recreate
+                // First delete the old message
+                await _queueClient.DeleteMessageAsync(messageId, popReceipt);
+                
+                // Then send the updated message
+                var jsonMessage = JsonSerializer.Serialize(updatedMessage, new JsonSerializerOptions 
                 { 
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
                 });
+                var base64Message = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage));
                 
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                await _queueClient.SendMessageAsync(base64Message);
                 
-                var response = await _httpClient.PutAsync($"{_queueUrl}/{messageId}?popreceipt={popReceipt}", content);
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("Successfully updated inventory message: {MessageId}", messageId);
+                _logger.LogInformation("✅ Successfully updated inventory message: {MessageId}", messageId);
                     return true;
-                }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    var errorMessage = $"❌ InventoryQueueService: Failed to update inventory message. Status: {response.StatusCode}, Error: {errorContent}";
-                    _logger.LogError(errorMessage);
-                    throw new Exception(errorMessage);
-                }
             }
             catch (Exception ex)
             {
-                var detailedError = $"❌ InventoryQueueService: Error updating inventory message {messageId}: {ex.Message}";
-                if (ex.InnerException != null)
-                {
-                    detailedError += $"\nInner Exception: {ex.InnerException.Message}";
-                }
-                detailedError += $"\nStack Trace: {ex.StackTrace}";
-                _logger.LogError(detailedError);
-                throw new Exception(detailedError, ex);
+                _logger.LogError(ex, "❌ Error updating inventory message {MessageId}: {Message}", messageId, ex.Message);
+                return false;
             }
+        }
+
+        // Enhanced method to delete messages with proper error handling
+        public async Task<bool> DeleteMessageWithRetryAsync(string messageId, string popReceipt, int maxRetries = 3)
+        {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, cannot delete message");
+                return false;
+            }
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    _logger.LogInformation("🗑️ Deleting inventory message: {MessageId} (Attempt {Attempt}/{MaxRetries})", 
+                        messageId, attempt, maxRetries);
+
+                    await _queueClient.DeleteMessageAsync(messageId, popReceipt);
+                    
+                    _logger.LogInformation("✅ Successfully deleted inventory message: {MessageId}", messageId);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ Delete attempt {Attempt} failed for message {MessageId}: {Message}", 
+                        attempt, messageId, ex.Message);
+                    
+                    if (attempt == maxRetries)
+                    {
+                        _logger.LogError(ex, "❌ All delete attempts failed for message {MessageId}", messageId);
+                        return false;
+                    }
+                    
+                    // Wait before retry (exponential backoff)
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+                }
+            }
+            
+            return false;
         }
 
         public async Task<int> GetQueueLengthAsync()
         {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, returning 0");
+                return 0;
+            }
+
             try
             {
-                _logger.LogInformation("Getting inventory queue length");
+                _logger.LogInformation("🔢 Getting inventory queue length");
 
-                var response = await _httpClient.GetAsync($"{_queueUrl}?comp=metadata");
+                // Ensure queue exists
+                await _queueClient.CreateIfNotExistsAsync();
+
+                var properties = await _queueClient.GetPropertiesAsync();
+                var messageCount = properties.Value.ApproximateMessagesCount;
                 
-                if (response.IsSuccessStatusCode)
-                {
-                    var content = await response.Content.ReadAsStringAsync();
-                    _logger.LogInformation("Queue metadata response: {Content}", content);
-                    
-                    // Parse the XML response to get approximate message count
-                    var messageCount = ParseMessageCountFromXml(content);
-                    _logger.LogInformation("Successfully retrieved queue metadata (XML format) - Message count: {Count}", messageCount);
+                _logger.LogInformation("✅ Queue length: {MessageCount} messages", messageCount);
                     return messageCount;
-                }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    var errorMessage = $"❌ InventoryQueueService: Failed to get queue length. Status: {response.StatusCode}, Error: {errorContent}";
-                    _logger.LogError(errorMessage);
-                    throw new Exception(errorMessage);
-                }
             }
             catch (Exception ex)
             {
-                var detailedError = $"❌ InventoryQueueService: Error getting queue length: {ex.Message}";
-                if (ex.InnerException != null)
-                {
-                    detailedError += $"\nInner Exception: {ex.InnerException.Message}";
-                }
-                detailedError += $"\nStack Trace: {ex.StackTrace}";
-                _logger.LogError(detailedError);
-                throw new Exception(detailedError, ex);
+                _logger.LogError(ex, "❌ Error getting queue length: {Message}", ex.Message);
+                return 0;
             }
         }
 
         public async Task<bool> ClearQueueAsync()
         {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, cannot clear queue");
+                return false;
+            }
+
             try
             {
-                _logger.LogInformation("Clearing inventory queue");
+                _logger.LogInformation("🧹 Clearing inventory queue");
 
-                var response = await _httpClient.DeleteAsync(_queueUrl);
+                // Azure Queue doesn't have a direct clear method, so we'll delete and recreate
+                await _queueClient.DeleteIfExistsAsync();
+                await _queueClient.CreateIfNotExistsAsync();
                 
-                if (response.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("Successfully cleared inventory queue");
+                _logger.LogInformation("✅ Successfully cleared inventory queue");
                     return true;
-                }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    var errorMessage = $"❌ InventoryQueueService: Failed to clear queue. Status: {response.StatusCode}, Error: {errorContent}";
-                    _logger.LogError(errorMessage);
-                    throw new Exception(errorMessage);
-                }
             }
             catch (Exception ex)
             {
-                var detailedError = $"❌ InventoryQueueService: Error clearing queue: {ex.Message}";
-                if (ex.InnerException != null)
-                {
-                    detailedError += $"\nInner Exception: {ex.InnerException.Message}";
-                }
-                detailedError += $"\nStack Trace: {ex.StackTrace}";
-                _logger.LogError(detailedError);
-                throw new Exception(detailedError, ex);
+                _logger.LogError(ex, "❌ Error clearing queue: {Message}", ex.Message);
+                return false;
             }
         }
 
+        /// <summary>
+        /// Peeks at messages in the queue without removing them.
+        /// Messages remain in the queue for other consumers.
+        /// </summary>
+        /// <param name="maxMessages">Maximum number of messages to peek at</param>
+        /// <returns>List of messages (read-only view)</returns>
         public async Task<List<InventoryQueueMessage>> PeekMessagesAsync(int maxMessages = 10)
         {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, returning empty list");
+                return new List<InventoryQueueMessage>();
+            }
+
             try
             {
-                _logger.LogInformation("Peeking at up to {MaxMessages} inventory messages", maxMessages);
+                _logger.LogInformation("👀 Peeking at up to {MaxMessages} inventory messages (read-only, no messages removed)", maxMessages);
 
-                var response = await _httpClient.GetAsync($"{_queueUrl}?numofmessages={maxMessages}&peekonly=true");
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    var content = await response.Content.ReadAsStringAsync();
-                    _logger.LogInformation("Raw queue response: {Content}", content);
-                    
-                    // Parse XML response from Azure Queue Storage
-                    var messages = ParseQueueMessagesFromXml(content);
-                    _logger.LogInformation("Successfully peeked at {MessageCount} messages from XML", messages.Count);
-                    return messages;
-                }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    var errorMessage = $"❌ InventoryQueueService: Failed to peek at inventory messages. Status: {response.StatusCode}, Error: {errorContent}";
-                    _logger.LogError(errorMessage);
-                    throw new Exception(errorMessage);
-                }
-            }
-            catch (Exception ex)
-            {
-                var detailedError = $"❌ InventoryQueueService: Error peeking at inventory messages: {ex.Message}";
-                if (ex.InnerException != null)
-                {
-                    detailedError += $"\nInner Exception: {ex.InnerException.Message}";
-                }
-                detailedError += $"\nStack Trace: {ex.StackTrace}";
-                _logger.LogError(detailedError);
-                throw new Exception(detailedError, ex);
-            }
-        }
+                // Ensure queue exists
+                await _queueClient.CreateIfNotExistsAsync();
 
-        private List<InventoryQueueMessage> ParseQueueMessagesFromXml(string xmlContent)
-        {
-            try
-            {
                 var messages = new List<InventoryQueueMessage>();
-                
-                // Simple XML parsing for QueueMessagesList
-                if (xmlContent.Contains("<QueueMessagesList>") && xmlContent.Contains("<QueueMessage>"))
+                var response = await _queueClient.PeekMessagesAsync(maxMessages: maxMessages);
+
+                foreach (var queueMessage in response.Value)
                 {
-                    // Extract message IDs and content
-                    var messageStart = xmlContent.IndexOf("<QueueMessage>");
-                    while (messageStart >= 0)
+                    try
                     {
-                        var messageEnd = xmlContent.IndexOf("</QueueMessage>", messageStart);
-                        if (messageEnd < 0) break;
+                        // Decode base64 message and deserialize
+                        var jsonBytes = Convert.FromBase64String(queueMessage.MessageText);
+                        var jsonMessage = Encoding.UTF8.GetString(jsonBytes);
                         
-                        var messageXml = xmlContent.Substring(messageStart, messageEnd - messageStart + 16);
-                        
-                        // Extract MessageId
-                        var idStart = messageXml.IndexOf("<MessageId>") + 11;
-                        var idEnd = messageXml.IndexOf("</MessageId>");
-                        var messageId = idStart < idEnd ? messageXml.Substring(idStart, idEnd - idStart) : Guid.NewGuid().ToString();
-                        
-                        // Extract MessageText (base64 encoded)
-                        var textStart = messageXml.IndexOf("<MessageText>") + 13;
-                        var textEnd = messageXml.IndexOf("</MessageText>");
-                        var messageText = textStart < textEnd ? messageXml.Substring(textStart, textEnd - textStart) : "";
-                        
-                        // Decode base64 message text
-                        string decodedText = "";
-                        try
+                        var inventoryMessage = JsonSerializer.Deserialize<InventoryQueueMessage>(jsonMessage, new JsonSerializerOptions 
+                        { 
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+                        });
+
+                        if (inventoryMessage != null)
                         {
-                            if (!string.IsNullOrEmpty(messageText))
-                            {
-                                var bytes = Convert.FromBase64String(messageText);
-                                decodedText = System.Text.Encoding.UTF8.GetString(bytes);
-                            }
+                            // Add Azure Queue metadata
+                            inventoryMessage.Id = queueMessage.MessageId;
+                            messages.Add(inventoryMessage);
                         }
-                        catch
-                        {
-                            decodedText = messageText; // Use raw text if decoding fails
-                        }
-                        
-                        // Create InventoryQueueMessage from parsed data
-                        var message = new InventoryQueueMessage
-                        {
-                            Id = messageId,
-                            Type = "inventory_message",
-                            ProductName = decodedText.Contains("Product") ? decodedText : "Unknown Product",
-                            Action = decodedText.Contains("updated") ? "update" : "alert",
-                            Notes = decodedText,
-                            Status = "pending",
-                            Priority = "normal",
-                            Timestamp = DateTime.UtcNow
-                        };
-                        
-                        messages.Add(message);
-                        
-                        // Find next message
-                        messageStart = xmlContent.IndexOf("<QueueMessage>", messageEnd);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "❌ Error parsing peeked message {MessageId}: {Message}", queueMessage.MessageId, ex.Message);
                     }
                 }
-                
-                _logger.LogInformation("Parsed {MessageCount} messages from XML", messages.Count);
+
+                _logger.LogInformation("✅ Successfully peeked at {MessageCount} messages", messages.Count);
                 return messages;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error parsing XML queue messages");
+                _logger.LogError(ex, "❌ Error peeking at inventory messages: {Message}", ex.Message);
                 return new List<InventoryQueueMessage>();
             }
         }
 
-        private int ParseMessageCountFromXml(string xmlContent)
+        public async Task<bool> TestConnectionAsync()
         {
+            if (!_isAzureConnected || _queueClient == null)
+            {
+                _logger.LogWarning("⚠️ Azure Queue not connected, cannot test connection");
+                return false;
+            }
+
             try
             {
-                // Look for ApproximateMessageCount in the XML
-                if (xmlContent.Contains("<ApproximateMessageCount>"))
-                {
-                    var start = xmlContent.IndexOf("<ApproximateMessageCount>") + 26;
-                    var end = xmlContent.IndexOf("</ApproximateMessageCount>");
-                    if (start < end)
-                    {
-                        var countText = xmlContent.Substring(start, end - start);
-                        if (int.TryParse(countText, out int count))
-                        {
-                            return count;
-                        }
-                    }
-                }
+                _logger.LogInformation("🔍 Testing Azure Queue connection...");
+
+                // Try to get queue properties to test connection
+                var properties = await _queueClient.GetPropertiesAsync();
+                var messageCount = properties.Value.ApproximateMessagesCount;
                 
-                // Fallback: count QueueMessage tags
-                var messageCount = 0;
-                var index = 0;
-                while ((index = xmlContent.IndexOf("<QueueMessage>", index)) >= 0)
-                {
-                    messageCount++;
-                    index += 14;
-                }
-                
-                return messageCount;
+                _logger.LogInformation("✅ Connection test successful! Queue length: {MessageCount} messages", messageCount);
+                return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error parsing message count from XML");
-                return 0;
+                _logger.LogError(ex, "❌ Connection test failed: {Message}", ex.Message);
+                return false;
             }
         }
 
         public void Dispose()
         {
-            _httpClient?.Dispose();
+            // Azure SDK handles disposal automatically
         }
     }
 }

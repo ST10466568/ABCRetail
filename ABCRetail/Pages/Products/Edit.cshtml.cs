@@ -11,12 +11,14 @@ public class EditModel : PageModel
     private readonly IAzureTableServiceV2 _azureTableService;
     private readonly IAzureBlobService _blobService;
     private readonly IInventoryQueueService _inventoryQueueService;
+    private readonly ILogger<EditModel> _logger;
 
-    public EditModel(IAzureTableServiceV2 azureTableService, IAzureBlobService blobService, IInventoryQueueService inventoryQueueService)
+    public EditModel(IAzureTableServiceV2 azureTableService, IAzureBlobService blobService, IInventoryQueueService inventoryQueueService, ILogger<EditModel> logger)
     {
         _azureTableService = azureTableService;
         _blobService = blobService;
         _inventoryQueueService = inventoryQueueService;
+        _logger = logger;
     }
 
     [BindProperty]
@@ -96,6 +98,17 @@ public class EditModel : PageModel
             // Send inventory queue message for product update
             try
             {
+                // Validate that required properties are set before creating queue message
+                if (string.IsNullOrEmpty(Product?.Name))
+                {
+                    throw new InvalidOperationException("Product name is null or empty");
+                }
+                
+                if (string.IsNullOrEmpty(Product?.RowKey))
+                {
+                    throw new InvalidOperationException("Product RowKey is null or empty");
+                }
+                
                 var inventoryMessage = new InventoryQueueMessage
                 {
                     Type = "inventory_update",
@@ -109,7 +122,45 @@ public class EditModel : PageModel
                     UserId = "system"
                 };
                 
-                await _inventoryQueueService.SendMessageAsync(inventoryMessage);
+                // Log the message being sent for debugging
+                _logger.LogInformation("📤 Sending inventory queue message: {MessageType} for {ProductName}", inventoryMessage.Type, inventoryMessage.ProductName);
+                
+                var sendResult = await _inventoryQueueService.SendMessageAsync(inventoryMessage);
+                
+                if (!sendResult)
+                {
+                    throw new InvalidOperationException("Failed to send inventory queue message");
+                }
+                
+                _logger.LogInformation("✅ Inventory queue message sent successfully for {ProductName}", inventoryMessage.ProductName);
+                
+                // Send low stock alert if stock quantity is 10 or less
+                if (Product.StockQuantity <= 10)
+                {
+                    _logger.LogWarning("🚨 Low stock detected for {ProductName}: {Quantity} units", Product.Name, Product.StockQuantity);
+                    
+                    var lowStockMessage = new InventoryQueueMessage
+                    {
+                        Type = "low_stock_alert",
+                        ProductId = Product.RowKey,
+                        ProductName = Product.Name,
+                        Quantity = Product.StockQuantity,
+                        Action = "alert",
+                        Priority = Product.StockQuantity <= 5 ? "urgent" : "high",
+                        Status = "pending",
+                        Notes = $"Low stock alert: Product '{Product.Name}' stock reduced to {Product.StockQuantity} units",
+                        UserId = "system"
+                    };
+                    
+                    var lowStockResult = await _inventoryQueueService.SendMessageAsync(lowStockMessage);
+                    
+                    if (!lowStockResult)
+                    {
+                        throw new InvalidOperationException("Failed to send low stock alert message");
+                    }
+                    
+                    _logger.LogInformation("✅ Low stock alert sent successfully for {ProductName}", Product.Name);
+                }
                 
                 TempData["SuccessMessage"] = $"Product '{Product.Name}' updated successfully! Inventory message queued.";
                 return RedirectToPage("./Index");

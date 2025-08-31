@@ -36,6 +36,9 @@ namespace ABCRetail.Models
 
         [JsonPropertyName("status")]
         public string Status { get; set; } = "pending"; // "pending", "processing", "completed", "failed"
+
+        [JsonPropertyName("popReceipt")]
+        public string PopReceipt { get; set; } = string.Empty; // Azure Queue pop receipt for deletion/updates
     }
 
     public enum InventoryAction

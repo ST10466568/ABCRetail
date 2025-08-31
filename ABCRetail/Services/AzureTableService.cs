@@ -1,8 +1,12 @@
 using Azure;
 using Azure.Data.Tables;
-using ABCRetail.Models;
 using Microsoft.Extensions.Configuration;
-using System.Text.Json;
+using ABCRetail.Models;
+using ABCRetail.Services;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace ABCRetail.Services
 {
@@ -10,12 +14,15 @@ namespace ABCRetail.Services
     {
         private readonly TableServiceClient _tableServiceClient;
         private readonly WorkingDataFetcher _workingDataFetcher;
-        private readonly IConfiguration _configuration;
 
         public AzureTableService(IConfiguration configuration)
         {
-            _configuration = configuration;
-            var connectionString = _configuration["AzureStorage:ConnectionString"];
+            var connectionString = configuration["AzureStorage:ConnectionString"];
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                throw new InvalidOperationException("Azure Storage connection string is not configured");
+            }
+            Console.WriteLine($"AzureTableService: Using connection string: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}...");
             _tableServiceClient = new TableServiceClient(connectionString);
             _workingDataFetcher = new WorkingDataFetcher(configuration);
         }
@@ -33,8 +40,7 @@ namespace ABCRetail.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure SDK ListTablesAsync failed: {ex.Message}");
-                Console.WriteLine("🔄 Falling back to WorkingDataFetcher...");
+                Console.WriteLine($"AzureTableService: ListTablesAsync failed: {ex.Message}");
                 // Return known table names as fallback
                 return new List<string> { "Customers", "Products", "Orders" };
             }
@@ -46,27 +52,83 @@ namespace ABCRetail.Services
             {
                 // Try Azure SDK first
                 var tableName = GetTableName<T>();
+                Console.WriteLine($"AzureTableService: Trying to get all {typeof(T).Name} entities from table '{tableName}' using Azure SDK");
+                
                 var tableClient = _tableServiceClient.GetTableClient(tableName);
                 
-                var entities = new List<T>();
-                await foreach (var entity in tableClient.QueryAsync<T>())
+                // Check if table exists first
+                try
                 {
-                    entities.Add(entity);
+                    await tableClient.CreateIfNotExistsAsync();
+                    Console.WriteLine($"AzureTableService: Table '{tableName}' exists or was created");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"AzureTableService: Failed to create/verify table '{tableName}': {ex.Message}");
+                }
+                
+                var entities = new List<T>();
+                
+                // Try different query approaches
+                try
+                {
+                    // Method 1: Query with empty filter
+                    var query = tableClient.QueryAsync<T>(filter: "");
+                    await foreach (var entity in query)
+                    {
+                        entities.Add(entity);
+                        Console.WriteLine($"AzureTableService: Found entity: {entity}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"AzureTableService: Method 1 failed: {ex.Message}");
+                    
+                    try
+                    {
+                        // Method 2: Query with specific partition key
+                        if (typeof(T) == typeof(Customer))
+                        {
+                            var customerQuery = tableClient.QueryAsync<Customer>(filter: "PartitionKey eq 'Customer'");
+                            await foreach (var entity in customerQuery)
+                            {
+                                entities.Add(entity as T);
+                                Console.WriteLine($"AzureTableService: Found customer: {entity.FirstName} {entity.LastName}");
+                            }
+                        }
+                        else if (typeof(T) == typeof(Product))
+                        {
+                            var productQuery = tableClient.QueryAsync<Product>(filter: "PartitionKey eq 'Product'");
+                            await foreach (var entity in productQuery)
+                            {
+                                entities.Add(entity as T);
+                                Console.WriteLine($"AzureTableService: Found product: {entity.Name}");
+                            }
+                        }
+                    }
+                    catch (Exception ex2)
+                    {
+                        Console.WriteLine($"AzureTableService: Method 2 also failed: {ex2.Message}");
+                    }
                 }
                 
                 if (entities.Any())
                 {
-                    Console.WriteLine($"✅ Azure SDK successfully retrieved {entities.Count} {typeof(T).Name} entities");
+                    Console.WriteLine($"AzureTableService: Successfully retrieved {entities.Count} {typeof(T).Name} entities via Azure SDK");
                     return entities;
+                }
+                else
+                {
+                    Console.WriteLine($"AzureTableService: No {typeof(T).Name} entities found via Azure SDK, falling back to WorkingDataFetcher");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure SDK GetAllEntitiesAsync failed: {ex.Message}");
+                Console.WriteLine($"AzureTableService: Azure SDK failed for {typeof(T).Name}: {ex.Message}, falling back to WorkingDataFetcher");
             }
 
             // Fallback to WorkingDataFetcher
-            Console.WriteLine("🔄 Falling back to WorkingDataFetcher for GetAllEntitiesAsync...");
+            Console.WriteLine($"AzureTableService: Using WorkingDataFetcher fallback for {typeof(T).Name}");
             return await GetEntitiesViaWorkingFetcher<T>();
         }
 
@@ -80,17 +142,17 @@ namespace ABCRetail.Services
                 var entity = await tableClient.GetEntityAsync<T>(partitionKey, rowKey);
                 if (entity.HasValue)
                 {
-                    Console.WriteLine($"✅ Azure SDK successfully retrieved {typeof(T).Name} entity");
+                    Console.WriteLine($"AzureTableService: Successfully retrieved {typeof(T).Name} entity via Azure SDK");
                     return entity.Value;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure SDK GetEntityAsync failed: {ex.Message}");
+                Console.WriteLine($"AzureTableService: Azure SDK failed for {typeof(T).Name}: {ex.Message}, falling back to WorkingDataFetcher");
             }
 
             // Fallback to WorkingDataFetcher
-            Console.WriteLine("🔄 Falling back to WorkingDataFetcher for GetEntityAsync...");
+            Console.WriteLine($"AzureTableService: Using WorkingDataFetcher fallback for {typeof(T).Name}");
             return await GetEntityViaWorkingFetcher<T>(partitionKey, rowKey);
         }
 
@@ -111,17 +173,17 @@ namespace ABCRetail.Services
                 
                 if (entities.Any())
                 {
-                    Console.WriteLine($"✅ Azure SDK successfully retrieved {entities.Count} {typeof(T).Name} entities with PartitionKey '{partitionKey}'");
+                    Console.WriteLine($"AzureTableService: Successfully retrieved {entities.Count} {typeof(T).Name} entities with PartitionKey '{partitionKey}' via Azure SDK");
                     return entities;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure SDK GetEntitiesAsync failed: {ex.Message}");
+                Console.WriteLine($"AzureTableService: Azure SDK failed for {typeof(T).Name}: {ex.Message}, falling back to WorkingDataFetcher");
             }
 
             // Fallback to WorkingDataFetcher
-            Console.WriteLine("🔄 Falling back to WorkingDataFetcher for GetEntitiesAsync...");
+            Console.WriteLine($"AzureTableService: Using WorkingDataFetcher fallback for {typeof(T).Name}");
             var allEntities = await GetEntitiesViaWorkingFetcher<T>();
             return allEntities.Where(e => e.PartitionKey == partitionKey);
         }
@@ -130,17 +192,16 @@ namespace ABCRetail.Services
         {
             try
             {
-                // Try Azure SDK first
                 var tableName = GetTableName<T>();
                 var tableClient = _tableServiceClient.GetTableClient(tableName);
                 await tableClient.AddEntityAsync(entity);
-                Console.WriteLine($"✅ Azure SDK successfully created {typeof(T).Name} entity");
+                Console.WriteLine($"AzureTableService: Successfully created {typeof(T).Name} entity via Azure SDK");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure SDK CreateEntityAsync failed: {ex.Message}");
-                Console.WriteLine("🔄 Note: WorkingDataFetcher is read-only, cannot create entities");
+                Console.WriteLine($"AzureTableService: CreateEntityAsync failed for {typeof(T).Name}: {ex.Message}");
+                // Note: WorkingDataFetcher is read-only, cannot create entities
                 return false;
             }
         }
@@ -149,17 +210,16 @@ namespace ABCRetail.Services
         {
             try
             {
-                // Try Azure SDK first
                 var tableName = GetTableName<T>();
                 var tableClient = _tableServiceClient.GetTableClient(tableName);
                 await tableClient.UpdateEntityAsync(entity, ETag.All, TableUpdateMode.Replace);
-                Console.WriteLine($"✅ Azure SDK successfully updated {typeof(T).Name} entity");
+                Console.WriteLine($"AzureTableService: Successfully updated {typeof(T).Name} entity via Azure SDK");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure SDK UpdateEntityAsync failed: {ex.Message}");
-                Console.WriteLine("🔄 Note: WorkingDataFetcher is read-only, cannot update entities");
+                Console.WriteLine($"AzureTableService: UpdateEntityAsync failed for {typeof(T).Name}: {ex.Message}");
+                // Note: WorkingDataFetcher is read-only, cannot update entities
                 return false;
             }
         }
@@ -168,17 +228,16 @@ namespace ABCRetail.Services
         {
             try
             {
-                // Try Azure SDK first
                 var tableName = GetTableName<T>();
                 var tableClient = _tableServiceClient.GetTableClient(tableName);
                 await tableClient.DeleteEntityAsync(partitionKey, rowKey);
-                Console.WriteLine($"✅ Azure SDK successfully deleted {typeof(T).Name} entity");
+                Console.WriteLine($"AzureTableService: Successfully deleted {typeof(T).Name} entity via Azure SDK");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure SDK DeleteEntityAsync failed: {ex.Message}");
-                Console.WriteLine("🔄 Note: WorkingDataFetcher is read-only, cannot delete entities");
+                Console.WriteLine($"AzureTableService: DeleteEntityAsync failed for {typeof(T).Name}: {ex.Message}");
+                // Note: WorkingDataFetcher is read-only, cannot delete entities
                 return false;
             }
         }
@@ -187,19 +246,18 @@ namespace ABCRetail.Services
         {
             try
             {
-                // Try Azure SDK first
                 var tableName = GetTableName<T>();
                 var tableClient = _tableServiceClient.GetTableClient(tableName);
-                var sdkEntity = await tableClient.GetEntityAsync<T>(partitionKey, rowKey);
-                return sdkEntity.HasValue;
+                var entity = await tableClient.GetEntityAsync<T>(partitionKey, rowKey);
+                return entity.HasValue;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure SDK EntityExistsAsync failed: {ex.Message}");
+                Console.WriteLine($"AzureTableService: EntityExistsAsync failed for {typeof(T).Name}: {ex.Message}, falling back to WorkingDataFetcher");
             }
 
             // Fallback to WorkingDataFetcher
-            Console.WriteLine("🔄 Falling back to WorkingDataFetcher for EntityExistsAsync...");
+            Console.WriteLine($"AzureTableService: Using WorkingDataFetcher fallback for EntityExistsAsync");
             var fallbackEntity = await GetEntityViaWorkingFetcher<T>(partitionKey, rowKey);
             return fallbackEntity != null;
         }
@@ -229,13 +287,13 @@ namespace ABCRetail.Services
                 }
                 else
                 {
-                    Console.WriteLine($"⚠️ WorkingDataFetcher doesn't support {typeof(T).Name} entities");
+                    Console.WriteLine($"WorkingDataFetcher doesn't support {typeof(T).Name} entities");
                     return Enumerable.Empty<T>();
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ WorkingDataFetcher fallback failed: {ex.Message}");
+                Console.WriteLine($"WorkingDataFetcher fallback failed: {ex.Message}");
                 return Enumerable.Empty<T>();
             }
         }
@@ -249,7 +307,7 @@ namespace ABCRetail.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ WorkingDataFetcher GetEntity fallback failed: {ex.Message}");
+                Console.WriteLine($"WorkingDataFetcher GetEntity fallback failed: {ex.Message}");
                 return null;
             }
         }

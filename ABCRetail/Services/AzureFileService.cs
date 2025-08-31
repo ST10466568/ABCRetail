@@ -23,11 +23,11 @@ public class AzureFileService : IAzureFileService
                 // Use the full SAS URL for file storage
                 _shareServiceClient = new ShareServiceClient(new Uri(fileSasUrl));
                 _isAzureConnected = true;
-                Console.WriteLine("✅ Azure File Service connected successfully using SAS URL");
+
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure File Service SAS URL connection failed: {ex.Message}");
+
                 _isAzureConnected = false;
             }
         }
@@ -39,17 +39,17 @@ public class AzureFileService : IAzureFileService
             {
                 _shareServiceClient = new ShareServiceClient(connectionString);
                 _isAzureConnected = true;
-                Console.WriteLine("✅ Azure File Service connected successfully using connection string");
+
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure File Service connection string failed: {ex.Message}");
+
                 _isAzureConnected = false;
             }
         }
         else
         {
-            Console.WriteLine("⚠️ Azure File Service: Missing SAS URL or valid connection string");
+
             _isAzureConnected = false;
         }
     }

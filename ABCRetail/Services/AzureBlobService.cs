@@ -24,11 +24,11 @@ public class AzureBlobService : IAzureBlobService
                 // Use the full SAS URL for blob storage
                 _blobServiceClient = new BlobServiceClient(new Uri(blobSasUrl));
                 _isAzureConnected = true;
-                Console.WriteLine($"✅ Azure Blob Service connected successfully using SAS URL to container: {_containerName}");
+
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure Blob Service SAS URL connection failed: {ex.Message}");
+
                 _isAzureConnected = false;
             }
         }
@@ -39,17 +39,17 @@ public class AzureBlobService : IAzureBlobService
             {
                 _blobServiceClient = new BlobServiceClient(connectionString);
                 _isAzureConnected = true;
-                Console.WriteLine($"✅ Azure Blob Service connected successfully using connection string to container: {_containerName}");
+
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure Blob Service connection string failed: {ex.Message}");
+
                 _isAzureConnected = false;
             }
         }
         else
         {
-            Console.WriteLine("⚠️ Azure Blob Service: Missing SAS URL or valid connection string and SAS token");
+
             _isAzureConnected = false;
         }
     }

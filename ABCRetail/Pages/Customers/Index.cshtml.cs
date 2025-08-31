@@ -10,11 +10,11 @@ namespace ABCRetail.Pages.Customers
 {
     public class IndexModel : PageModel
     {
-        private readonly WorkingDataFetcher _workingDataFetcher;
+        private readonly IAzureTableService _azureTableService;
 
-        public IndexModel(WorkingDataFetcher workingDataFetcher)
+        public IndexModel(IAzureTableService azureTableService)
         {
-            _workingDataFetcher = workingDataFetcher;
+            _azureTableService = azureTableService;
         }
 
         public List<Customer> Customers { get; set; } = new List<Customer>();
@@ -33,7 +33,11 @@ namespace ABCRetail.Pages.Customers
         {
             try
             {
-                Customers = await _workingDataFetcher.GetCustomersAsync();
+                Console.WriteLine("Customers Index: Starting to fetch customers...");
+                var customersEnumerable = await _azureTableService.GetAllEntitiesAsync<Customer>();
+                Customers = customersEnumerable.ToList();
+                Console.WriteLine($"Customers Index: Retrieved {Customers.Count} customers");
+                
                 TotalCustomers = Customers.Count;
                 TotalPages = (int)Math.Ceiling((double)TotalCustomers / PageSize);
                 
@@ -45,10 +49,11 @@ namespace ABCRetail.Pages.Customers
                 // Get customers for current page
                 var skip = (CurrentPage - 1) * PageSize;
                 PaginatedCustomers = Customers.Skip(skip).Take(PageSize).ToList();
+                Console.WriteLine($"Customers Index: Paginated to {PaginatedCustomers.Count} customers for page {CurrentPage}");
             }
             catch (System.Exception ex)
             {
-                System.Console.WriteLine($"Error loading customers: {ex.Message}");
+                Console.WriteLine($"Customers Index: Error fetching customers: {ex.Message}");
                 Customers = new List<Customer>();
                 PaginatedCustomers = new List<Customer>();
             }

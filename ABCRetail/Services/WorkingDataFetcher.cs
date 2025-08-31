@@ -113,12 +113,29 @@ namespace ABCRetail.Services
                     var jsonDoc = JsonDocument.Parse(response);
                     Console.WriteLine($"🔍 JSON root properties: {string.Join(", ", jsonDoc.RootElement.EnumerateObject().Select(p => p.Name))}");
                     
-                    if (jsonDoc.RootElement.TryGetProperty("value", out var valueProp))
+                    // Check if the response is an array (direct Azure response) or has a value property
+                    if (jsonDoc.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        Console.WriteLine($"🔍 Response is a direct array with {jsonDoc.RootElement.GetArrayLength()} items");
+                        var products = JsonSerializer.Deserialize<List<Product>>(response);
+                        if (products != null)
+                        {
+                            Console.WriteLine($"🎉 WorkingDataFetcher: Successfully retrieved {products.Count} products directly!");
+                            return products;
+                        }
+                    }
+                    else if (jsonDoc.RootElement.TryGetProperty("value", out var valueProp))
                     {
                         Console.WriteLine($"🔍 'value' property type: {valueProp.ValueKind}");
                         if (valueProp.ValueKind == JsonValueKind.Array)
                         {
                             Console.WriteLine($"🔍 'value' array count: {valueProp.GetArrayLength()}");
+                            var azureResponse = JsonSerializer.Deserialize<AzureTableResponse<Product>>(response);
+                            if (azureResponse?.Value != null)
+                            {
+                                Console.WriteLine($"🎉 WorkingDataFetcher: Successfully retrieved {azureResponse.Value.Count} products via AzureTableResponse!");
+                                return azureResponse.Value;
+                            }
                         }
                     }
                 }
@@ -127,23 +144,8 @@ namespace ABCRetail.Services
                     Console.WriteLine($"🔍 JSON parsing failed: {jsonEx.Message}");
                 }
                 
-                var azureResponse = JsonSerializer.Deserialize<AzureTableResponse<Product>>(response);
-                
-                if (azureResponse?.Value != null)
-                {
-                    Console.WriteLine($"🎉 WorkingDataFetcher: Successfully retrieved {azureResponse.Value.Count} products!");
-                    return azureResponse.Value;
-                }
-                else
-                {
-                    Console.WriteLine("⚠️ WorkingDataFetcher: No products found in response");
-                    Console.WriteLine($"🔍 azureResponse is null: {azureResponse == null}");
-                    if (azureResponse != null)
-                    {
-                        Console.WriteLine($"🔍 azureResponse.Value is null: {azureResponse.Value == null}");
-                    }
-                    return new List<Product>();
-                }
+                Console.WriteLine("⚠️ WorkingDataFetcher: No products found in response");
+                return new List<Product>();
             }
             catch (Exception ex)
             {
@@ -383,5 +385,10 @@ namespace ABCRetail.Services
             }
         }
         
+    }
+
+    public class AzureTableResponse<T>
+    {
+        public List<T> Value { get; set; } = new List<T>();
     }
 }

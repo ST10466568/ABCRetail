@@ -21,11 +21,11 @@ public class AzureQueueService : IAzureQueueService
                 // Use the full SAS URL for queue storage
                 _queueServiceClient = new QueueServiceClient(new Uri(queueSasUrl));
                 _isAzureConnected = true;
-                Console.WriteLine("✅ Azure Queue Service connected successfully using SAS URL");
+
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure Queue Service SAS URL connection failed: {ex.Message}");
+
                 _isAzureConnected = false;
             }
         }
@@ -37,17 +37,17 @@ public class AzureQueueService : IAzureQueueService
             {
                 _queueServiceClient = new QueueServiceClient(connectionString);
                 _isAzureConnected = true;
-                Console.WriteLine("✅ Azure Queue Service connected successfully using connection string");
+
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Azure Queue Service connection string failed: {ex.Message}");
+
                 _isAzureConnected = false;
             }
         }
         else
         {
-            Console.WriteLine("⚠️ Azure Queue Service: Missing SAS URL or valid connection string");
+
             _isAzureConnected = false;
         }
     }

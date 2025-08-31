@@ -15,10 +15,21 @@ namespace ABCRetail.Pages
         public InventoryQueueMessage NewMessage { get; set; } = new();
 
         public List<InventoryQueueMessage> Messages { get; set; } = new();
+        public List<InventoryQueueMessage> PaginatedMessages { get; set; } = new();
         public int QueueLength { get; set; }
         public int PendingCount { get; set; }
         public int ProcessingCount { get; set; }
         public int CompletedCount { get; set; }
+        
+        // Pagination properties
+        [BindProperty(SupportsGet = true)]
+        public int CurrentPage { get; set; } = 1;
+        [BindProperty(SupportsGet = true)]
+        public int PageSize { get; set; } = 5;
+        public int TotalPages { get; set; }
+        public int TotalMessages { get; set; }
+        public bool HasPreviousPage => CurrentPage > 1;
+        public bool HasNextPage => CurrentPage < TotalPages;
 
         public InventoryQueueModel(IInventoryQueueService inventoryQueueService, ILogger<InventoryQueueModel> logger)
         {
@@ -32,19 +43,57 @@ namespace ABCRetail.Pages
             {
                 _logger.LogInformation("Loading inventory queue data");
                 
+                // First test the connection
+                _logger.LogInformation("🔍 Testing Azure Queue connection...");
+                var connectionTest = await _inventoryQueueService.TestConnectionAsync();
+                if (!connectionTest)
+                {
+                    _logger.LogWarning("⚠️ Azure Queue connection test failed");
+                    TempData["ErrorMessage"] = "Azure Queue connection test failed. Please check configuration and permissions.";
+                }
+                else
+                {
+                    _logger.LogInformation("✅ Azure Queue connection test successful");
+                }
+                
                 // Get queue statistics
                 QueueLength = await _inventoryQueueService.GetQueueLengthAsync();
+                _logger.LogInformation("Queue length retrieved: {QueueLength}", QueueLength);
                 
-                // Get messages from queue
-                Messages = await _inventoryQueueService.PeekMessagesAsync(50);
+                // Get messages from queue using PEEK (read-only, no messages removed from queue)
+                // This ensures messages remain in the queue for other consumers
+                // Azure Queue Storage limits peek to 32 messages maximum
+                Messages = await _inventoryQueueService.PeekMessagesAsync(32);
+                _logger.LogInformation("Messages peeked from queue: {MessageCount} (messages remain in queue, max 32 allowed)", Messages.Count);
+                foreach (var msg in Messages)
+                {
+                    _logger.LogInformation("[QUEUE FRONTEND] Peeked message: ID={Id}, Type={Type}, Product={ProductName}, Action={Action}, Status={Status}, Timestamp={Timestamp}",
+                        msg.Id, msg.Type, msg.ProductName, msg.Action, msg.Status, msg.Timestamp);
+                }
+                
+                // Sort messages by timestamp (latest first)
+                Messages = Messages.OrderByDescending(m => m.Timestamp).ToList();
                 
                 // Calculate counts by status
                 PendingCount = Messages.Count(m => m.Status == "pending");
                 ProcessingCount = Messages.Count(m => m.Status == "processing");
                 CompletedCount = Messages.Count(m => m.Status == "completed");
                 
-                _logger.LogInformation("Inventory queue loaded successfully. Queue length: {QueueLength}, Messages: {MessageCount}", 
-                    QueueLength, Messages.Count);
+                // Implement pagination
+                TotalMessages = Messages.Count;
+                TotalPages = (int)Math.Ceiling((double)TotalMessages / PageSize);
+                
+                // Ensure current page is within valid range
+                if (CurrentPage < 1) CurrentPage = 1;
+                if (CurrentPage > TotalPages) CurrentPage = TotalPages;
+                if (TotalPages == 0) CurrentPage = 1;
+                
+                // Get messages for current page
+                var skip = (CurrentPage - 1) * PageSize;
+                PaginatedMessages = Messages.Skip(skip).Take(PageSize).ToList();
+                
+                _logger.LogInformation("Inventory queue loaded successfully. Queue length: {QueueLength}, Total Messages: {TotalMessages}, Current Page: {CurrentPage}/{TotalPages}, Page Messages: {PageMessageCount}", 
+                    QueueLength, TotalMessages, CurrentPage, TotalPages, PaginatedMessages.Count);
             }
             catch (Exception ex)
             {
@@ -58,6 +107,7 @@ namespace ABCRetail.Pages
                 _logger.LogError(detailedError);
                 TempData["ErrorMessage"] = detailedError;
                 Messages = new List<InventoryQueueMessage>();
+                PaginatedMessages = new List<InventoryQueueMessage>();
             }
         }
 
@@ -68,7 +118,7 @@ namespace ABCRetail.Pages
                 if (!ModelState.IsValid)
                 {
                     _logger.LogWarning("Invalid model state for sending inventory message");
-                    return Page();
+                    return new JsonResult(new { success = false, error = "Invalid model state" });
                 }
 
                 _logger.LogInformation("Sending inventory message: {MessageType} for product {ProductName}", 
@@ -84,13 +134,11 @@ namespace ABCRetail.Pages
                 
                 // If we get here, the message was sent successfully
                 _logger.LogInformation("Successfully sent inventory message with ID: {MessageId}", NewMessage.Id);
-                TempData["SuccessMessage"] = "Inventory message sent successfully!";
                 
                 // Reset the form
                 NewMessage = new InventoryQueueMessage();
                 
-                // Redirect to refresh the page
-                return RedirectToPage();
+                return new JsonResult(new { success = true, message = "Inventory message sent successfully!" });
             }
             catch (Exception ex)
             {
@@ -102,8 +150,7 @@ namespace ABCRetail.Pages
                 detailedError += $"\nStack Trace: {ex.StackTrace}";
                 
                 _logger.LogError(detailedError);
-                TempData["ErrorMessage"] = detailedError;
-                return Page();
+                return new JsonResult(new { success = false, error = detailedError });
             }
         }
 
@@ -118,9 +165,8 @@ namespace ABCRetail.Pages
                 
                 // If we get here, the queue was cleared successfully
                 _logger.LogInformation("Successfully cleared inventory queue");
-                TempData["SuccessMessage"] = "Inventory queue cleared successfully!";
                 
-                return RedirectToPage();
+                return new JsonResult(new { success = true, message = "Inventory queue cleared successfully!" });
             }
             catch (Exception ex)
             {
@@ -132,8 +178,7 @@ namespace ABCRetail.Pages
                 detailedError += $"\nStack Trace: {ex.StackTrace}";
                 
                 _logger.LogError(detailedError);
-                TempData["ErrorMessage"] = detailedError;
-                return RedirectToPage();
+                return new JsonResult(new { success = false, error = detailedError });
             }
         }
 
