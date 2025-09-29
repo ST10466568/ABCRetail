@@ -1,14 +1,14 @@
 {
   "IsEncrypted": false,
   "Values": {
-    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=abcretailstoragevuyo;AccountKey=Td7zP5UiTyD9JboCb3ECw05BllzFChZKInZO7LYm5FacXdzb7uDGRq/os/N7Sco7vZFOlpP9kpNA+ASt+PVnMA==;EndpointSuffix=core.windows.net",
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=YOUR_STORAGE_ACCOUNT;AccountKey=YOUR_STORAGE_KEY;EndpointSuffix=core.windows.net",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-    "AzureStorage:ConnectionString": "DefaultEndpointsProtocol=https;AccountName=abcretailstoragevuyo;AccountKey=Td7zP5UiTyD9JboCb3ECw05BllzFChZKInZO7LYm5FacXdzb7uDGRq/os/N7Sco7vZFOlpP9kpNA+ASt+PVnMA==;EndpointSuffix=core.windows.net",
-    "AzureStorage:BlobConnectionString": "DefaultEndpointsProtocol=https;AccountName=abcretailstoragevuyo;AccountKey=Td7zP5UiTyD9JboCb3ECw05BllzFChZKInZO7LYm5FacXdzb7uDGRq/os/N7Sco7vZFOlpP9kpNA+ASt+PVnMA==;EndpointSuffix=core.windows.net",
-    "AzureStorage:BlobSasUrl": "https://abcretailstoragevuyo.blob.core.windows.net?sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-30T01:38:13Z&st=2025-08-29T17:23:13Z&spr=https&sig=q4FrdN8d0gvfX9CNrOWhI5rakBULEc8%2Fomd9QhlQ1qw%3D",
+    "AzureStorage:ConnectionString": "DefaultEndpointsProtocol=https;AccountName=YOUR_STORAGE_ACCOUNT;AccountKey=YOUR_STORAGE_KEY;EndpointSuffix=core.windows.net",
+    "AzureStorage:BlobConnectionString": "DefaultEndpointsProtocol=https;AccountName=YOUR_STORAGE_ACCOUNT;AccountKey=YOUR_STORAGE_KEY;EndpointSuffix=core.windows.net",
+    "AzureStorage:BlobSasUrl": "https://YOUR_STORAGE_ACCOUNT.blob.core.windows.net?sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-30T01:38:13Z&st=2025-08-29T17:23:13Z&spr=https&sig=YOUR_SAS_SIGNATURE",
     "AzureStorage:BlobContainerName": "product-images",
-    "AzureStorage:QueueSasUrl": "https://abcretailstoragevuyo.queue.core.windows.net/inventory-queue?sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-30T01:38:13Z&st=2025-08-29T17:23:13Z&spr=https&sig=q4FrdN8d0gvfX9CNrOWhI5rakBULEc8%2Fomd9QhlQ1qw%3D",
-    "AzureStorage:FileSasUrl": "https://abcretailstoragevuyo.file.core.windows.net/logs?sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-30T01:38:13Z&st=2025-08-29T17:23:13Z&spr=https&sig=q4FrdN8d0gvfX9CNrOWhI5rakBULEc8%2Fomd9QhlQ3D",
+    "AzureStorage:QueueSasUrl": "https://YOUR_STORAGE_ACCOUNT.queue.core.windows.net/inventory-queue?sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-30T01:38:13Z&st=2025-08-29T17:23:13Z&spr=https&sig=YOUR_SAS_SIGNATURE",
+    "AzureStorage:FileSasUrl": "https://YOUR_STORAGE_ACCOUNT.file.core.windows.net/logs?sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-30T01:38:13Z&st=2025-08-29T17:23:13Z&spr=https&sig=YOUR_SAS_SIGNATURE",
     "AzureStorage:TableName": "Customers",
     "AzureStorage:QueueName": "inventory-queue",
     "AzureStorage:ShareName": "logs"

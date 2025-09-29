@@ -265,7 +265,7 @@ namespace ABCRetail.Functions.Functions
             // Check for function key in headers
             if (req.Headers.TryGetValues("x-functions-key", out var functionKeys))
             {
-                var expectedKey = _configuration["AzureFunctions:FunctionKey"] ?? "DsCwx-G16RtXqJu-VrOodO4Hc6-twvBGRX_8gNA_ftlwAzFuq7z2rg==";
+                var expectedKey = _configuration["AzureFunctions:FunctionKey"] ?? "YOUR_FUNCTION_KEY";
                 return functionKeys.Any(key => key == expectedKey);
             }
             return false;

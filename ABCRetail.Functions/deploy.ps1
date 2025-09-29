@@ -39,7 +39,7 @@ if (-not $ResourceGroupName) {
 
 # Use existing storage account
 if (-not $StorageAccountName) {
-    $StorageAccountName = "abcretailstoragevuyo"
+    $StorageAccountName = "YOUR_STORAGE_ACCOUNT"
     Write-Host "Using existing storage account: $StorageAccountName" -ForegroundColor Yellow
 }
 
@@ -55,7 +55,7 @@ az functionapp create `
     --storage-account $StorageAccountName
 
 # Use the existing storage connection string
-$storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=abcretailstoragevuyo;AccountKey=Td7zP5UiTyD9JboCb3ECw05BllzFChZKInZO7LYm5FacXdzb7uDGRq/os/N7Sco7vZFOlpP9kpNA+ASt+PVnMA==;EndpointSuffix=core.windows.net"
+$storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=YOUR_STORAGE_ACCOUNT;AccountKey=YOUR_STORAGE_KEY;EndpointSuffix=core.windows.net"
 
 # Configure application settings
 Write-Host "Configuring application settings..." -ForegroundColor Yellow
