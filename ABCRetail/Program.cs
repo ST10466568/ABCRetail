@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.AddControllers();
 
 // Configure custom logging to Azure File Storage
 var loggingConnectionString = builder.Configuration.GetConnectionString("AzureStorage");
@@ -20,6 +21,9 @@ builder.Services.AddScoped<IAzureTableService, AzureTableService>();
 builder.Services.AddScoped<IAzureBlobService, AzureBlobService>();
 builder.Services.AddScoped<IAzureQueueService, AzureQueueService>();
 builder.Services.AddScoped<IAzureFileService, AzureFileService>();
+
+// Register Azure Functions service
+builder.Services.AddHttpClient<IAzureFunctionsService, AzureFunctionsService>();
 
 
 
@@ -48,6 +52,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthorization();
+app.MapControllers();
 app.MapRazorPages();
 
 // Seed demo data on startup

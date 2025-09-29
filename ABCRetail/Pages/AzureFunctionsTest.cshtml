@@ -1,0 +1,180 @@
+@page
+@model ABCRetail.Pages.AzureFunctionsTestModel
+@{
+    ViewData["Title"] = "Azure Functions Test";
+}
+
+<div class="container mt-4">
+    <h1>Azure Functions Integration Test (CORS Proxy)</h1>
+    <p class="lead">Test the Azure Functions integration with your ABCRetail application using the CORS proxy.</p>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Table Operations</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary mb-2" onclick="testTableList()">Test Table List</button>
+                    <button class="btn btn-success mb-2" onclick="testTableCreate()">Test Table Create</button>
+                    <div id="tableResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Queue Operations</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary mb-2" onclick="testQueueLength()">Test Queue Length</button>
+                    <button class="btn btn-success mb-2" onclick="testQueueSend()">Test Queue Send</button>
+                    <div id="queueResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Blob Operations</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary mb-2" onclick="testBlobList()">Test Blob List</button>
+                    <button class="btn btn-success mb-2" onclick="testBlobUpload()">Test Blob Upload</button>
+                    <div id="blobResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>File Operations</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary mb-2" onclick="testFileList()">Test File List</button>
+                    <button class="btn btn-success mb-2" onclick="testFileWrite()">Test File Write</button>
+                    <div id="fileResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Use CORS proxy instead of direct Azure Functions URLs
+    const proxyBaseUrl = '/api/corsproxy';
+    
+    function makeRequest(endpoint, method = 'GET', body = null) {
+        const url = `${proxyBaseUrl}/${endpoint}`;
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        const options = {
+            method: method,
+            headers: headers
+        };
+
+        if (body) {
+            options.body = JSON.stringify(body);
+        }
+
+        return fetch(url, options)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            });
+    }
+
+    function displayResult(elementId, data, isError = false) {
+        const element = document.getElementById(elementId);
+        element.innerHTML = `<div class="alert ${isError ? 'alert-danger' : 'alert-success'}">
+            <strong>Result:</strong><br>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+        </div>`;
+    }
+
+    function testTableList() {
+        makeRequest('table/list')
+            .then(data => displayResult('tableResult', data))
+            .catch(error => displayResult('tableResult', error.message, true));
+    }
+
+    function testTableCreate() {
+        const customer = {
+            firstName: 'Test',
+            lastName: 'Customer',
+            email: 'test@example.com',
+            phone: '123-456-7890',
+            address: '123 Test St',
+            city: 'Test City',
+            state: 'TS',
+            zipCode: '12345'
+        };
+
+        makeRequest('table/create', 'POST', customer)
+            .then(data => displayResult('tableResult', data))
+            .catch(error => displayResult('tableResult', error.message, true));
+    }
+
+    function testQueueLength() {
+        makeRequest('queue/length')
+            .then(data => displayResult('queueResult', data))
+            .catch(error => displayResult('queueResult', error.message, true));
+    }
+
+    function testQueueSend() {
+        const message = {
+            type: 'Test',
+            productId: 'test-product-1',
+            productName: 'Test Product',
+            quantity: 10,
+            userId: 'test-user',
+            notes: 'Test message from web interface'
+        };
+
+        makeRequest('queue/send', 'POST', message)
+            .then(data => displayResult('queueResult', data))
+            .catch(error => displayResult('queueResult', error.message, true));
+    }
+
+    function testBlobList() {
+        makeRequest('blob/list')
+            .then(data => displayResult('blobResult', data))
+            .catch(error => displayResult('blobResult', error.message, true));
+    }
+
+    function testBlobUpload() {
+        const testContent = 'This is a test file content';
+        const base64Content = btoa(testContent);
+        const body = { content: base64Content };
+
+        makeRequest('blob/upload?fileName=test-file.txt', 'POST', body)
+            .then(data => displayResult('blobResult', data))
+            .catch(error => displayResult('blobResult', error.message, true));
+    }
+
+    function testFileList() {
+        makeRequest('file/list')
+            .then(data => displayResult('fileResult', data))
+            .catch(error => displayResult('fileResult', error.message, true));
+    }
+
+    function testFileWrite() {
+        const body = {
+            content: 'This is a test log entry from the web interface',
+            isBase64: false
+        };
+
+        makeRequest('file/write?fileName=test-log.txt', 'POST', body)
+            .then(data => displayResult('fileResult', data))
+            .catch(error => displayResult('fileResult', error.message, true));
+    }
+</script>
