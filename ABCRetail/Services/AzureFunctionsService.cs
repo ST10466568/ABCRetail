@@ -47,7 +47,7 @@ namespace ABCRetail.Services
             _configuration = configuration;
             _logger = logger;
             _functionAppUrl = _configuration["AzureFunctions:BaseUrl"] ?? "https://abcretail-functions-3195.azurewebsites.net";
-            _functionKey = _configuration["AzureFunctions:FunctionKey"] ?? "DsCwx-G16RtXqJu-VrOodO4Hc6-twvBGRX_8gNA_ftlwAzFuq7z2rg==";
+            _functionKey = _configuration["AzureFunctions:FunctionKey"] ?? "YOUR_FUNCTION_KEY";
             
             _httpClient.DefaultRequestHeaders.Add("x-functions-key", _functionKey);
             _httpClient.DefaultRequestHeaders.Add("Content-Type", "application/json");

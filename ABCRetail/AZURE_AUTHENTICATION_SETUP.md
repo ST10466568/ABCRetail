@@ -90,7 +90,7 @@ dotnet add package Microsoft.Identity.Web
   },
   "AzureFunctions": {
     "BaseUrl": "https://abcretail-functions-3195.azurewebsites.net",
-    "FunctionKey": "DsCwx-G16RtXqJu-VrOodO4Hc6-twvBGRX_8gNA_ftlwAzFuq7z2rg==",
+    "FunctionKey": "YOUR_FUNCTION_KEY",
     "UseAuthentication": true
   }
 }

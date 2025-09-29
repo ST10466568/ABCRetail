@@ -43,7 +43,7 @@
 ### **Function App Settings:**
 ```
 Function App URL: https://abcretail-functions-3195.azurewebsites.net
-Function Key: DsCwx-G16RtXqJu-VrOodO4Hc6-twvBGRX_8gNA_ftlwAzFuq7z2rg==
+Function Key: YOUR_FUNCTION_KEY
 Storage Account: abcretailstoragevuyo
 Resource Group: AZ-JHB-RSG-RCNA-ST10466568-TER
 ```
@@ -80,7 +80,7 @@ POST https://abcretail-functions-3195.azurewebsites.net/api/file/write?fileName=
 
 **Required Headers:**
 ```
-x-functions-key: DsCwx-G16RtXqJu-VrOodO4Hc6-twvBGRX_8gNA_ftlwAzFuq7z2rg==
+x-functions-key: YOUR_FUNCTION_KEY
 Content-Type: application/json
 ```
 
